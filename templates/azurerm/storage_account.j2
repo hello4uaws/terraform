@@ -1,0 +1,11 @@
+resource "azurerm_storage_account" "{{ name }}" {
+  name                     = "{{ name | lower | replace('-', '') }}"
+  resource_group_name      = azurerm_resource_group.{{ resource_group_name }}.name
+  location                 = "{{ location | default('eastus') }}"
+  account_tier             = "{{ account_tier | default('Standard') }}"
+  account_replication_type = "{{ replication_type | default('LRS') }}"
+
+  tags = {
+    environment = "{{ environment | default('production') }}"
+  }
+} 

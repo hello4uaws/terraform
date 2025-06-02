@@ -1,0 +1,10 @@
+resource "azurerm_virtual_network" "{{ name }}" {
+  name                = "{{ name }}"
+  address_space       = ["{{ address_space }}"]
+  location            = "{{ location | default('eastus') }}"
+  resource_group_name = azurerm_resource_group.{{ resource_group_name }}.name
+
+  tags = {
+    environment = "{{ environment | default('production') }}"
+  }
+}
