@@ -1,0 +1,70 @@
+{
+  "provider": "azurerm",
+  "subscription_id": "YOUR_SUBSCRIPTION_ID",
+  "tenant_id": "YOUR_TENANT_ID",
+  "resources": [
+    {
+      "type": "resource_group",
+      "name": "example-rg1",
+      "location": "eastus2",
+      "environment": "development"
+    },
+    {
+      "type": "virtual_network",
+      "name": "example-vnet",
+      "resource_group_name": "example-rg1",
+      "location": "eastus2",
+      "address_space": "10.0.0.0/16",
+      "environment": "development"
+    },
+    {
+      "type": "subnet",
+      "name": "example-subnet",
+      "resource_group_name": "example-rg1",
+      "virtual_network_name": "example-vnet",
+      "address_prefix": "10.0.1.0/24"
+    },
+    {
+      "type": "network_interface",
+      "name": "example-vm-nic",
+      "resource_group_name": "example-rg1",
+      "location": "eastus2",
+      "subnet_name": "example-subnet",
+      "environment": "development"
+    },
+    {
+      "type": "linux_virtual_machine",
+      "name": "example-vm",
+      "resource_group_name": "example-rg1",
+      "location": "eastus2",
+      "size": "Standard_DS1_v2",
+      "admin_username": "adminuser",
+      "ssh_key_path": "YOUR_SSH_KEY_PATH",
+      "storage_account_type": "Standard_LRS",
+      "image_publisher": "Canonical",
+      "image_offer": "UbuntuServer",
+      "image_sku": "18.04-LTS",
+      "environment": "development"
+    },
+    {
+      "type": "storage_account",
+      "name": "examplestorageacc",
+      "resource_group_name": "example-rg1",
+      "location": "eastus2",
+      "account_tier": "Standard",
+      "replication_type": "LRS",
+      "environment": "development"
+    },
+    {
+      "type": "mysql_flexible_server",
+      "name": "example-mysql",
+      "resource_group_name": "example-rg1",
+      "location": "eastus2",
+      "admin_username": "mysqladmin",
+      "admin_password": "YOUR_MYSQL_PASSWORD",
+      "sku_name": "GP_Standard_D2ds_v4",
+      "version": "8.0.21",
+      "environment": "development"
+    }
+  ]
+}
