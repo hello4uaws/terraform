@@ -1,18 +1,23 @@
 trigger:
   branches:
     include:
-      - main
+    - main
 
 pool:
   vmImage: 'ubuntu-latest'
 
 # Define variable groups for each cloud provider
+# Note: Create these variable groups in Azure DevOps Library before running the pipeline
+# If you don't need all cloud providers, you can comment out the ones you don't need
 variables:
-- group: aws-credentials # Contains: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+# Comment out any variable groups you don't need
+#- group: aws-credentials # Contains: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 - group: azure-credentials # Contains: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID, AZURE_MYSQL_PASSWORD
-- group: gcp-credentials # Contains: GCP_PROJECT_ID, GCP_KEY
+#- group: gcp-credentials # Contains: GCP_PROJECT_ID, GCP_KEY
 - name: CONFIG_DIR
   value: '$(System.DefaultWorkingDirectory)/configs'
+- name: system.debug
+  value: 'true'
 
 stages:
 - stage: Generate
@@ -51,7 +56,7 @@ stages:
         sed -i 's/YOUR_SUBSCRIPTION_ID/$(AZURE_SUBSCRIPTION_ID)/g' $(CONFIG_DIR)/config_azure.json
         sed -i 's/YOUR_TENANT_ID/$(AZURE_TENANT_ID)/g' $(CONFIG_DIR)/config_azure.json
         sed -i 's|YOUR_SSH_KEY_PATH|$(System.DefaultWorkingDirectory)/ssh/terraform-key.pub|g' $(CONFIG_DIR)/config_azure.json
-        sed -i 's/YOUR_MYSQL_PASSWORD/$(AZURE_MYSQL_PASSWORD)/g' $(CONFIG_DIR)/config_azure.json
+        #sed -i 's/YOUR_MYSQL_PASSWORD/$(AZURE_MYSQL_PASSWORD)/g' $(CONFIG_DIR)/config_azure.json
       displayName: 'Update Azure Configuration'
 
     # Setup GCP authentication
@@ -186,4 +191,3 @@ stages:
             env:
               GOOGLE_APPLICATION_CREDENTIALS: $(System.DefaultWorkingDirectory)/gcp-key.json
               GCP_PROJECT_ID: $(GCP_PROJECT_ID)
-#
