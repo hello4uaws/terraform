@@ -1,0 +1,18 @@
+resource "azurerm_mysql_server" "{{ name }}" {
+  name                = "{{ name }}"
+  location            = "{{ location | default('eastus') }}"
+  resource_group_name = azurerm_resource_group.{{ resource_group_name }}.name
+
+  administrator_login          = "{{ admin_username }}"
+  administrator_login_password = "{{ admin_password }}"
+
+  sku_name   = "{{ sku_name | default('GP_Gen5_2') }}"
+  storage_mb = {{ storage_mb | default('5120') }}
+  version    = "{{ version | default('5.7') }}"
+
+  ssl_enforcement_enabled = {{ ssl_enforcement | default('true') }}
+
+  tags = {
+    environment = "{{ environment | default('production') }}"
+  }
+} 

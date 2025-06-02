@@ -1,0 +1,13 @@
+resource "azurerm_mysql_flexible_server" "{{ name }}" {
+  name                   = "{{ name }}"
+  resource_group_name    = azurerm_resource_group.{{ resource_group_name }}.name
+  location              = "{{ location }}"
+  administrator_login    = "{{ admin_username }}"
+  administrator_password = "{{ admin_password }}"
+  sku_name              = "{{ sku_name }}"
+  version               = "{{ version }}"
+
+  tags = {
+    environment = "{{ environment }}"
+  }
+} 

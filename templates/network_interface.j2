@@ -1,0 +1,15 @@
+resource "azurerm_network_interface" "{{ name }}" {
+  name                = "{{ name }}"
+  location            = "{{ location | default('eastus') }}"
+  resource_group_name = azurerm_resource_group.{{ resource_group_name }}.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.{{ subnet_name }}.id
+    private_ip_address_allocation = "Dynamic"
+  }
+
+  tags = {
+    environment = "{{ environment | default('production') }}"
+  }
+}

@@ -1,0 +1,32 @@
+resource "azurerm_linux_virtual_machine" "{{ name }}" {
+  name                = "{{ name }}"
+  resource_group_name = azurerm_resource_group.{{ resource_group_name }}.name
+  location            = "{{ location | default('eastus') }}"
+  size               = "{{ size | default('Standard_DS1_v2') }}"
+  admin_username     = "{{ admin_username | default('adminuser') }}"
+  
+  network_interface_ids = [
+    azurerm_network_interface.{{ name }}-nic.id
+  ]
+
+  admin_ssh_key {
+    username   = "{{ admin_username | default('adminuser') }}"
+    public_key = file("{{ ssh_key_path | default('~/.ssh/id_rsa.pub') }}")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "{{ storage_account_type | default('Standard_LRS') }}"
+  }
+
+  source_image_reference {
+    publisher = "{{ image_publisher | default('Canonical') }}"
+    offer     = "{{ image_offer | default('UbuntuServer') }}"
+    sku       = "{{ image_sku | default('18.04-LTS') }}"
+    version   = "{{ image_version | default('latest') }}"
+  }
+
+  tags = {
+    environment = "{{ environment | default('production') }}"
+  }
+} 
