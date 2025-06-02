@@ -1,0 +1,186 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+# Define variable groups for each cloud provider
+variables:
+- group: aws-credentials # Contains: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+- group: azure-credentials # Contains: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID, AZURE_MYSQL_PASSWORD
+- group: gcp-credentials # Contains: GCP_PROJECT_ID, GCP_KEY
+- name: CONFIG_DIR
+  value: '$(System.DefaultWorkingDirectory)/configs'
+
+stages:
+- stage: Generate
+  jobs:
+  - job: GenerateConfigs
+    steps:
+    # Install required Python packages
+    - script: |
+        python -m pip install --upgrade pip
+        pip install jinja2
+      displayName: 'Install Python dependencies'
+
+    # Create directories for configs and SSH keys
+    - script: |
+        mkdir -p $(CONFIG_DIR)
+        mkdir -p $(System.DefaultWorkingDirectory)/ssh
+      displayName: 'Create required directories'
+
+    # Copy configuration templates
+    - script: |
+        cp config_aws.json $(CONFIG_DIR)/
+        cp config_azure.json $(CONFIG_DIR)/
+        cp config_gcp.json $(CONFIG_DIR)/
+      displayName: 'Copy configuration templates'
+
+    # Generate SSH key for Azure VMs
+    - script: |
+        if [ ! -f "$(System.DefaultWorkingDirectory)/ssh/terraform-key" ]; then
+          ssh-keygen -t rsa -b 4096 -f $(System.DefaultWorkingDirectory)/ssh/terraform-key -N ""
+        fi
+      displayName: 'Generate SSH Keys'
+
+    # Update Azure configuration
+    - script: |
+        # Update Azure configuration with variables
+        sed -i 's/YOUR_SUBSCRIPTION_ID/$(AZURE_SUBSCRIPTION_ID)/g' $(CONFIG_DIR)/config_azure.json
+        sed -i 's/YOUR_TENANT_ID/$(AZURE_TENANT_ID)/g' $(CONFIG_DIR)/config_azure.json
+        sed -i 's|YOUR_SSH_KEY_PATH|$(System.DefaultWorkingDirectory)/ssh/terraform-key.pub|g' $(CONFIG_DIR)/config_azure.json
+        sed -i 's/YOUR_MYSQL_PASSWORD/$(AZURE_MYSQL_PASSWORD)/g' $(CONFIG_DIR)/config_azure.json
+      displayName: 'Update Azure Configuration'
+
+    # Setup GCP authentication
+    - script: |
+        echo "$(GCP_KEY)" > $(System.DefaultWorkingDirectory)/gcp-key.json
+      displayName: 'Setup GCP Authentication'
+
+    # Generate Terraform configurations
+    - script: |
+        python generate_2.py --config $(CONFIG_DIR)/config_aws.json
+        python generate_2.py --config $(CONFIG_DIR)/config_azure.json
+        python generate_2.py --config $(CONFIG_DIR)/config_gcp.json
+      displayName: 'Generate Terraform Configurations'
+      env:
+        # AWS Authentication
+        AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+        AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+
+        # Azure Authentication
+        ARM_CLIENT_ID: $(AZURE_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
+        ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+        ARM_TENANT_ID: $(AZURE_TENANT_ID)
+        # GCP Authentication
+        GOOGLE_APPLICATION_CREDENTIALS: $(System.DefaultWorkingDirectory)/gcp-key.json
+        GCP_PROJECT_ID: $(GCP_PROJECT_ID)
+
+    # Prepare artifacts
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(System.DefaultWorkingDirectory)/output'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+      displayName: 'Copy Terraform Configurations'
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'terraform-configs'
+        publishLocation: 'Container'
+      displayName: 'Publish Terraform Configurations'
+
+# AWS Deployment Stage
+- stage: DeployAWS
+  dependsOn: Generate
+  condition: succeeded()
+  jobs:
+  - deployment: AWS
+    environment: 'aws'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'terraform-configs'
+              downloadPath: '$(System.ArtifactsDirectory)'
+            displayName: 'Download Terraform Configurations'
+
+          - script: |
+              cd $(System.ArtifactsDirectory)/terraform-configs/aws
+              terraform init
+              terraform apply -auto-approve
+            displayName: 'Deploy to AWS'
+            env:
+              AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+              AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+
+# Azure Deployment Stage
+- stage: DeployAzure
+  dependsOn: Generate
+  condition: succeeded()
+  jobs:
+  - deployment: Azure
+    environment: 'azure'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'terraform-configs'
+              downloadPath: '$(System.ArtifactsDirectory)'
+            displayName: 'Download Terraform Configurations'
+
+          # Copy SSH keys to deployment environment
+          - script: |
+              mkdir -p $(System.DefaultWorkingDirectory)/ssh
+              cp $(Build.ArtifactStagingDirectory)/ssh/terraform-key* $(System.DefaultWorkingDirectory)/ssh/
+            displayName: 'Copy SSH Keys'
+
+          - script: |
+              cd $(System.ArtifactsDirectory)/terraform-configs/azurerm
+              terraform init
+              terraform apply -auto-approve
+            displayName: 'Deploy to Azure'
+            env:
+              ARM_CLIENT_ID: $(AZURE_CLIENT_ID)
+              ARM_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
+              ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+              ARM_TENANT_ID: $(AZURE_TENANT_ID)
+
+# GCP Deployment Stage
+- stage: DeployGCP
+  dependsOn: Generate
+  condition: succeeded()
+  jobs:
+  - deployment: GCP
+    environment: 'gcp'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'terraform-configs'
+              downloadPath: '$(System.ArtifactsDirectory)'
+            displayName: 'Download Terraform Configurations'
+
+          - script: |
+              echo "$(GCP_KEY)" > $(System.DefaultWorkingDirectory)/gcp-key.json
+              cd $(System.ArtifactsDirectory)/terraform-configs/google
+              terraform init
+              terraform apply -auto-approve
+            displayName: 'Deploy to GCP'
+            env:
+              GOOGLE_APPLICATION_CREDENTIALS: $(System.DefaultWorkingDirectory)/gcp-key.json
+              GCP_PROJECT_ID: $(GCP_PROJECT_ID)
